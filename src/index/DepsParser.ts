@@ -40,7 +40,8 @@ export function parseDepsFile(content: string, googBaseDir: string): NamespaceEn
   let m: RegExpExecArray | null;
 
   while ((m = DEP_RE.exec(content)) !== null) {
-    const relPath = m[1];
+    // Query-строка после .js? используется для cache-busting при отладочной загрузке — отбрасываем
+    const relPath = m[1].replace(/\?.*$/, '');
     const provides = extractStrings(m[2]);
     const requires = extractStrings(m[3]);
     // Путь в deps.js относительный (от googBaseDir), приводим к абсолютному
