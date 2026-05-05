@@ -1,0 +1,49 @@
+{
+  "name": "gcc-ext",
+  "displayName": "Google Closure Library Support",
+  "description": "Navigation, autocompletion and hover for goog.require/goog.provide projects",
+  "version": "0.0.1",
+  "publisher": "gcc-ext",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Programming Languages"],
+  "activationEvents": ["workspaceContains:gcl.json"],
+  "main": "./out/extension",
+  "contributes": {
+    "commands": [
+      {
+        "command": "gcl.showStats",
+        "title": "GCL: Show Index Stats"
+      },
+      {
+        "command": "gcl.reindex",
+        "title": "GCL: Reindex"
+      }
+    ],
+    "configuration": {
+      "title": "Google Closure Library",
+      "properties": {
+        "gcl.configFile": {
+          "type": "string",
+          "default": "gcl.json",
+          "description": "Path to gcl.json config file relative to workspace root"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.0"
+  }
+}
