@@ -23,14 +23,41 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return;
   }
 
-  indexManager = new IndexManager(config);
-  await indexManager.initialize();
+  const channel = vscode.window.createOutputChannel('GCL');
+  context.subscriptions.push(channel);
+
+  indexManager = new IndexManager(config, channel);
+
+  try {
+    await indexManager.initialize();
+  } catch (err) {
+    vscode.window.showErrorMessage(`GCL: ошибка инициализации — ${err}`);
+    channel.appendLine(`[error] initialize failed: ${err}`);
+    return;
+  }
 
   const { index } = indexManager;
   const JS_SELECTOR = { language: 'javascript', scheme: 'file' };
 
+  // Вотчер на gcl.json — предлагаем перезагрузить окно при изменении конфига
+  const configPattern = new vscode.RelativePattern(vscode.Uri.file(workspaceRoot), 'gcl.json');
+  const configWatcher = vscode.workspace.createFileSystemWatcher(configPattern);
+  const onConfigChange = () => {
+    vscode.window.showInformationMessage(
+      'GCL: gcl.json изменён. Перезагрузите окно для применения.',
+      'Перезагрузить'
+    ).then(choice => {
+      if (choice === 'Перезагрузить') {
+        vscode.commands.executeCommand('workbench.action.reloadWindow');
+      }
+    });
+  };
+  configWatcher.onDidChange(onConfigChange);
+  configWatcher.onDidCreate(onConfigChange);
+
   context.subscriptions.push(
     indexManager,
+    configWatcher,
 
     vscode.languages.registerDefinitionProvider(JS_SELECTOR, new DefinitionProvider(index)),
 
@@ -49,14 +76,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
 
     vscode.commands.registerCommand('gcl.reindex', async () => {
-      await indexManager?.initialize();
-      vscode.window.showInformationMessage(
-        `GCL: reindexed, ${index.size()} namespaces`
-      );
+      try {
+        await indexManager?.initialize();
+        vscode.window.showInformationMessage(
+          `GCL: переиндексировано, ${index.size()} namespaces`
+        );
+      } catch (err) {
+        vscode.window.showErrorMessage(`GCL: ошибка переиндексации — ${err}`);
+      }
     }),
 
     vscode.commands.registerCommand('gcl.generateWorkspace', async () => {
-      const uri = generateWorkspaceFile(config);
+      let uri: vscode.Uri;
+      try {
+        uri = generateWorkspaceFile(config);
+      } catch (err) {
+        vscode.window.showErrorMessage(`GCL: не удалось создать workspace файл — ${err}`);
+        return;
+      }
       // Предлагаем сразу открыть workspace — это перезапустит окно VSCode с multi-root
       const choice = await vscode.window.showInformationMessage(
         `Workspace file created: ${uri.fsPath}`,
@@ -68,7 +105,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
   );
 
-  console.log(`[gcc-ext] activated, ${index.size()} namespaces indexed`);
+  channel.appendLine(`[gcc-ext] activated, ${index.size()} namespaces indexed`);
 }
 
 export function deactivate(): void {
