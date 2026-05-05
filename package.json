@@ -4,6 +4,10 @@
   "description": "Navigation, autocompletion and hover for goog.require/goog.provide projects",
   "version": "0.0.1",
   "publisher": "gcc-ext",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sublihim/gcc-ext"
+  },
   "engines": {
     "vscode": "^1.80.0",
     "npm": ">=11.0.0"
