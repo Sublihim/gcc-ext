@@ -23,6 +23,7 @@
 ```json
 {
   "depsFile": "./deps.js",
+  "depsRoot": ".",
   "closureLibraryRoot": "../closure-library",
   "externsGlob": ["./externs/**/*.js"],
   "projectRoot": "./js"
@@ -32,6 +33,7 @@
 | Поле | Описание |
 |---|---|
 | `depsFile` | Путь к `deps.js` проекта, относительно `gcl.json` |
+| `depsRoot` | Директория, от которой отсчитываются пути внутри `deps.js` проекта (по умолчанию `.`) |
 | `closureLibraryRoot` | Путь к директории `google-closure-library` |
 | `externsGlob` | Glob-паттерны для externs-файлов (необязательно) |
 | `projectRoot` | Корневая директория исходников JS |
@@ -47,7 +49,8 @@
 1. `deps.js` вашего проекта (поле `depsFile` в `gcl.json`)
 2. `deps.js` самой closure-library (`<closureLibraryRoot>/closure/goog/deps.js`)
 
-Пути в `deps.js` разрешаются относительно `<closureLibraryRoot>/closure/goog/` — директории, где находится `base.js`.
+Пути в **проектном** `deps.js` разрешаются относительно `depsRoot` (по умолчанию — корень workspace).  
+Пути в `deps.js` **closure-library** разрешаются относительно `<closureLibraryRoot>/closure/goog/` — директории, где находится `base.js`.
 
 ## Команды
 
@@ -59,7 +62,7 @@
 ## Разработка
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/gcc-ext
+git clone https://github.com/Sublihim/gcc-ext
 cd gcc-ext
 npm install
 npm run compile

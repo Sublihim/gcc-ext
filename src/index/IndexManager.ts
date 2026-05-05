@@ -32,21 +32,23 @@ export class IndexManager implements vscode.Disposable {
   private reindex(): void {
     this.index.clear();
     // closure-library грузится первой — записи проекта перекрывают её при коллизии неймспейсов
-    this.loadDepsFile(this.config.closureLibraryDeps, 'closure-library');
-    this.loadDepsFile(this.config.depsFile, 'project');
+    // Пути в closure-library deps.js относительны от googBaseDir (директория base.js)
+    this.loadDepsFile(this.config.closureLibraryDeps, 'closure-library', this.config.googBaseDir);
+    // Пути в проектном deps.js относительны от depsRoot (корень проекта)
+    this.loadDepsFile(this.config.depsFile, 'project', this.config.depsRoot);
     const count = this.index.size();
     this.statusBar.text = `$(symbol-namespace) GCL: ${count} ns`;
     this.statusBar.tooltip = `Google Closure Library: ${count} namespaces indexed`;
   }
 
-  private loadDepsFile(filePath: string, label: string): void {
+  private loadDepsFile(filePath: string, label: string, baseDir: string): void {
     if (!fs.existsSync(filePath)) {
       console.warn(`[gcc-ext] deps.js not found (${label}): ${filePath}`);
       return;
     }
     try {
       const content = fs.readFileSync(filePath, 'utf8');
-      const entries = parseDepsFile(content, this.config.googBaseDir);
+      const entries = parseDepsFile(content, baseDir);
       for (const entry of entries) {
         this.index.add(entry);
       }

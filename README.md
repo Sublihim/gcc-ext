@@ -25,6 +25,7 @@ VSCode extension that brings code navigation, autocompletion, and hover info to 
 ```json
 {
   "depsFile": "./deps.js",
+  "depsRoot": ".",
   "closureLibraryRoot": "../closure-library",
   "externsGlob": ["./externs/**/*.js"],
   "projectRoot": "./js"
@@ -34,6 +35,7 @@ VSCode extension that brings code navigation, autocompletion, and hover info to 
 | Field | Description |
 |---|---|
 | `depsFile` | Path to your project's `deps.js`, relative to `gcl.json` |
+| `depsRoot` | Root directory that paths inside your `deps.js` are relative to (defaults to `.`) |
 | `closureLibraryRoot` | Path to the `google-closure-library` directory |
 | `externsGlob` | Glob patterns for extern files (optional) |
 | `projectRoot` | Root directory of your JS source files |
@@ -49,7 +51,8 @@ The extension reads `deps.js` (never scans source files) to build an in-memory n
 1. Your project's `deps.js` (`depsFile` from `gcl.json`)
 2. The closure-library's own `deps.js` (`<closureLibraryRoot>/closure/goog/deps.js`)
 
-Paths in `deps.js` are resolved relative to `<closureLibraryRoot>/closure/goog/` — the directory where `base.js` lives.
+Paths in **your project's** `deps.js` are resolved relative to `depsRoot` (defaults to the workspace root).  
+Paths in the **closure-library** `deps.js` are resolved relative to `<closureLibraryRoot>/closure/goog/` — the directory where `base.js` lives.
 
 ## Commands
 
@@ -61,7 +64,7 @@ Paths in `deps.js` are resolved relative to `<closureLibraryRoot>/closure/goog/`
 ## Development
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/gcc-ext
+git clone https://github.com/Sublihim/gcc-ext
 cd gcc-ext
 npm install
 npm run compile
