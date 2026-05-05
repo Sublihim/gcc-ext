@@ -26,9 +26,15 @@ VSCode extension that brings code navigation, autocompletion, and hover info to 
 {
   "depsFile": "./deps.js",
   "depsRoot": ".",
-  "closureLibraryRoot": "../closure-library",
+  "closureLibraryRoot": "../project-libs/closure-library",
   "externsGlob": ["./externs/**/*.js"],
-  "projectRoot": "./js"
+  "projectRoot": "./js",
+  "folders": [
+    ".",
+    "../project-a",
+    "../project-b",
+    "../project-libs"
+  ]
 }
 ```
 
@@ -39,6 +45,7 @@ VSCode extension that brings code navigation, autocompletion, and hover info to 
 | `closureLibraryRoot` | Path to the `google-closure-library` directory |
 | `externsGlob` | Glob patterns for extern files (optional) |
 | `projectRoot` | Root directory of your JS source files |
+| `folders` | List of folders to include in the VSCode Multi-root Workspace (optional) |
 
 **2. Open the project folder in VSCode.** The extension activates automatically when `gcl.json` is detected.
 
@@ -60,6 +67,9 @@ Paths in the **closure-library** `deps.js` are resolved relative to `<closureLib
 |---|---|
 | `GCL: Show Index Stats` | Displays total number of indexed namespaces |
 | `GCL: Reindex` | Forces a full re-read of both `deps.js` files |
+| `GCL: Generate Workspace File` | Creates `gcc.code-workspace` from the `folders` list in `gcl.json` |
+
+After running **GCL: Generate Workspace File**, VSCode will prompt you to open `gcc.code-workspace`. Opening it switches VSCode to Multi-root Workspace mode — all folders from `gcl.json` appear in the Explorer.
 
 ## Development
 

@@ -7,6 +7,7 @@ import { IndexManager } from './index/IndexManager';
 import { DefinitionProvider } from './providers/DefinitionProvider';
 import { CompletionProvider } from './providers/CompletionProvider';
 import { HoverProvider } from './providers/HoverProvider';
+import { generateWorkspaceFile } from './workspace/WorkspaceGenerator';
 
 let indexManager: IndexManager | undefined;
 
@@ -52,6 +53,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       vscode.window.showInformationMessage(
         `GCL: reindexed, ${index.size()} namespaces`
       );
+    }),
+
+    vscode.commands.registerCommand('gcl.generateWorkspace', async () => {
+      const uri = generateWorkspaceFile(config);
+      // Предлагаем сразу открыть workspace — это перезапустит окно VSCode с multi-root
+      const choice = await vscode.window.showInformationMessage(
+        `Workspace file created: ${uri.fsPath}`,
+        'Open Workspace'
+      );
+      if (choice === 'Open Workspace') {
+        await vscode.commands.executeCommand('vscode.openFolder', uri);
+      }
     }),
   );
 

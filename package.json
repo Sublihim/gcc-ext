@@ -19,6 +19,10 @@
       {
         "command": "gcl.reindex",
         "title": "GCL: Reindex"
+      },
+      {
+        "command": "gcl.generateWorkspace",
+        "title": "GCL: Generate Workspace File"
       }
     ],
     "configuration": {
