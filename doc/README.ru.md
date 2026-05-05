@@ -23,18 +23,27 @@
 ```json
 {
   "depsFile": "./deps.js",
-  "closureLibraryRoot": "../closure-library",
+  "depsRoot": ".",
+  "closureLibraryRoot": "../project-libs/closure-library",
   "externsGlob": ["./externs/**/*.js"],
-  "projectRoot": "./js"
+  "projectRoot": "./js",
+  "folders": [
+    ".",
+    "../project-a",
+    "../project-b",
+    "../project-libs"
+  ]
 }
 ```
 
 | Поле | Описание |
 |---|---|
 | `depsFile` | Путь к `deps.js` проекта, относительно `gcl.json` |
+| `depsRoot` | Директория, от которой отсчитываются пути внутри `deps.js` проекта (по умолчанию `.`) |
 | `closureLibraryRoot` | Путь к директории `google-closure-library` |
 | `externsGlob` | Glob-паттерны для externs-файлов (необязательно) |
 | `projectRoot` | Корневая директория исходников JS |
+| `folders` | Список папок для Multi-root Workspace VSCode (необязательно) |
 
 **2. Откройте папку проекта в VSCode.** Расширение активируется автоматически при обнаружении `gcl.json`.
 
@@ -47,7 +56,8 @@
 1. `deps.js` вашего проекта (поле `depsFile` в `gcl.json`)
 2. `deps.js` самой closure-library (`<closureLibraryRoot>/closure/goog/deps.js`)
 
-Пути в `deps.js` разрешаются относительно `<closureLibraryRoot>/closure/goog/` — директории, где находится `base.js`.
+Пути в **проектном** `deps.js` разрешаются относительно `depsRoot` (по умолчанию — корень workspace).  
+Пути в `deps.js` **closure-library** разрешаются относительно `<closureLibraryRoot>/closure/goog/` — директории, где находится `base.js`.
 
 ## Команды
 
@@ -55,11 +65,14 @@
 |---|---|
 | `GCL: Show Index Stats` | Показывает общее количество проиндексированных неймспейсов |
 | `GCL: Reindex` | Принудительно перечитывает оба файла `deps.js` |
+| `GCL: Generate Workspace File` | Создаёт `gcc.code-workspace` из списка `folders` в `gcl.json` |
+
+После выполнения **GCL: Generate Workspace File** VSCode предложит открыть `gcc.code-workspace`. При открытии VSCode переключается в режим Multi-root Workspace — все папки из `gcl.json` появляются в Explorer.
 
 ## Разработка
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/gcc-ext
+git clone https://github.com/Sublihim/gcc-ext
 cd gcc-ext
 npm install
 npm run compile

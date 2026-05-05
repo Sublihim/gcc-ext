@@ -5,7 +5,8 @@
   "version": "0.0.1",
   "publisher": "gcc-ext",
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.80.0",
+    "npm": ">=11.0.0"
   },
   "categories": ["Programming Languages"],
   "activationEvents": ["workspaceContains:gcl.json"],
@@ -19,6 +20,10 @@
       {
         "command": "gcl.reindex",
         "title": "GCL: Reindex"
+      },
+      {
+        "command": "gcl.generateWorkspace",
+        "title": "GCL: Generate Workspace File"
       }
     ],
     "configuration": {
