@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { NamespaceIndex } from '../index/NamespaceIndex';
 
-const GOOG_CALL_RE = /goog\.(?:require|provide)\s*\(\s*['"]([^'"]+)['"]/;
+const GOOG_CALL_RE = /goog\.(?:require|provide|module|requireType)\s*\(\s*['"]([^'"]+)['"]/;
 
 export class DefinitionProvider implements vscode.DefinitionProvider {
   constructor(private readonly index: NamespaceIndex) {}
@@ -31,9 +31,10 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
   ): string | undefined {
     const line = doc.lineAt(pos.line).text;
 
-    // Случай 1: курсор на строке goog.require/provide
+    // Случай 1: курсор на строке goog.require/provide/requireType
+    // goog.module пропускаем — навигация в тот же файл бессмысленна
     const m = GOOG_CALL_RE.exec(line);
-    if (m) {
+    if (m && !line.includes('goog.module(')) {
       const nsStart = line.indexOf(m[1]);
       const nsEnd = nsStart + m[1].length;
       // Реагируем только если курсор физически внутри строки с неймспейсом,
@@ -59,7 +60,7 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
     return undefined;
   }
 
-  // Сканируем только первые 100 строк: goog.provide всегда в шапке файла
+  // Сканируем только первые 100 строк: goog.provide/goog.module всегда в шапке файла
   private findProvidePosition(filePath: string, namespace: string): vscode.Position {
     try {
       const content = fs.readFileSync(filePath, 'utf8');
@@ -67,6 +68,8 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
       const patterns = [
         `goog.provide('${namespace}')`,
         `goog.provide("${namespace}")`,
+        `goog.module('${namespace}')`,
+        `goog.module("${namespace}")`,
       ];
       const limit = Math.min(lines.length, 100);
       for (let i = 0; i < limit; i++) {

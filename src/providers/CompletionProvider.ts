@@ -4,8 +4,8 @@
 import * as vscode from 'vscode';
 import { NamespaceIndex } from '../index/NamespaceIndex';
 
-// Detects we are inside the string argument of goog.require/provide and captures the prefix typed so far
-const IN_GOOG_REQUIRE_RE = /goog\.(?:require|provide)\s*\(\s*['"]([^'"]*)/;
+// Detects we are inside the string argument of goog.require/provide/requireType and captures the prefix typed so far
+const IN_GOOG_REQUIRE_RE = /goog\.(?:require|provide|requireType)\s*\(\s*['"]([^'"]*)/;
 
 export class CompletionProvider implements vscode.CompletionItemProvider {
   constructor(private readonly index: NamespaceIndex) {}

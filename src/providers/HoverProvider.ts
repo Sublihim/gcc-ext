@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { NamespaceIndex } from '../index/NamespaceIndex';
 
-const GOOG_CALL_RE = /goog\.(?:require|provide)\s*\(\s*['"]([^'"]+)['"]/;
+const GOOG_CALL_RE = /goog\.(?:require|provide|module|requireType)\s*\(\s*['"]([^'"]+)['"]/;
 
 export class HoverProvider implements vscode.HoverProvider {
   constructor(private readonly index: NamespaceIndex) {}
@@ -30,6 +30,10 @@ export class HoverProvider implements vscode.HoverProvider {
     const md = new vscode.MarkdownString(undefined, true);
     md.appendCodeblock(entry.filePath, 'text');
 
+    if (entry.moduleType === 'goog') {
+      md.appendMarkdown('\n**type:** `goog.module`');
+    }
+
     if (entry.requires.length > 0) {
       md.appendMarkdown(`\n**requires:** \`${entry.requires.join('`, `')}\``);
     }
@@ -42,13 +46,16 @@ export class HoverProvider implements vscode.HoverProvider {
     return new vscode.Hover(md);
   }
 
-  // Читает JSDoc-комментарий непосредственно перед строкой goog.provide в целевом файле.
-  // Ищем только в первых 100 строках — goog.provide всегда объявлен в шапке файла.
+  // Читает JSDoc-комментарий перед строкой goog.provide/goog.module в целевом файле.
+  // Ищем только в первых 100 строках — объявление всегда в шапке файла.
   private readJsdoc(filePath: string, namespace: string): string | undefined {
     try {
       const content = fs.readFileSync(filePath, 'utf8');
       const lines = content.split('\n');
-      const patterns = [`goog.provide('${namespace}')`, `goog.provide("${namespace}")`];
+      const patterns = [
+        `goog.provide('${namespace}')`, `goog.provide("${namespace}")`,
+        `goog.module('${namespace}')`,  `goog.module("${namespace}")`,
+      ];
 
       for (let i = 0; i < Math.min(lines.length, 100); i++) {
         if (!patterns.some(p => lines[i].includes(p))) continue;

@@ -11,13 +11,16 @@ export interface NamespaceEntry {
   provides: string[];
   /** Все зависимости, требуемые этим файлом */
   requires: string[];
+  /** 'goog' — файл использует goog.module; 'provide' — goog.provide (легаси) */
+  moduleType: 'provide' | 'goog';
 }
 
 // Разбирает строки вида:
 //   goog.addDependency('path', ['ns1', ...], ['dep1', ...])
-//   goog.addDependency('path', ['ns1'], ['dep1'], {lang: 'es6'})  // 4-й аргумент игнорируется
+//   goog.addDependency('path', ['ns1'], ['dep1'], {'module': 'goog'})
+// 4-й аргумент необязателен; захватывается для определения moduleType
 const DEP_RE =
-  /goog\.addDependency\(\s*['"]([^'"]+)['"]\s*,\s*(\[[^\]]*\])\s*,\s*(\[[^\]]*\])/g;
+  /goog\.addDependency\(\s*['"]([^'"]+)['"]\s*,\s*(\[[^\]]*\])\s*,\s*(\[[^\]]*\])\s*(?:,\s*(\{[^}]*\}))?/g;
 
 // Извлекает строковые значения из литерала массива: ['foo.Bar', "baz.Qux"] → ['foo.Bar', 'baz.Qux']
 const STR_RE = /['"]([^'"]+)['"]/g;
@@ -46,11 +49,14 @@ export function parseDepsFile(content: string, googBaseDir: string): NamespaceEn
     const requires = extractStrings(m[3]);
     // Путь в deps.js относительный (от googBaseDir), приводим к абсолютному
     const filePath = path.resolve(googBaseDir, relPath);
+    // 4-й аргумент: {'module': 'goog'} означает goog.module-файл
+    const isGoogModule = m[4] ? /['"]?module['"]?\s*:\s*['"]goog['"]/.test(m[4]) : false;
+    const moduleType: 'provide' | 'goog' = isGoogModule ? 'goog' : 'provide';
 
     // Один файл может объявлять несколько неймспейсов — создаём запись для каждого,
     // потому что индекс ищет по неймспейсу, а не по файлу
     for (const ns of provides) {
-      entries.push({ namespace: ns, filePath, provides, requires });
+      entries.push({ namespace: ns, filePath, provides, requires, moduleType });
     }
   }
 
