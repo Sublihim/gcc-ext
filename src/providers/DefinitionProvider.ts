@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { NamespaceIndex } from '../index/NamespaceIndex';
 import { SymbolCache } from '../parser/SymbolCache';
-import { resolveReceiverType } from '../parser/InheritanceResolver';
+import { resolveReceiverType, resolveMethodInHierarchy } from '../parser/InheritanceResolver';
 
 const GOOG_CALL_RE = /goog\.(?:require|provide|module|requireType)\s*\(\s*['"]([^'"]+)['"]/;
 
@@ -84,6 +84,22 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
 
     const varName = receiver.startsWith('this.') ? receiver.slice(5) : receiver;
     if (!varName) return undefined;
+
+    // Случай: this.someMethod() — receiver === "this", ищем метод в иерархии классов файла
+    if (varName === 'this') {
+      const entries = this.index.getByFile(document.uri.fsPath);
+      for (const entry of entries) {
+        const result = resolveMethodInHierarchy(entry.namespace, method, this.symbolCache, this.index);
+        if (!result) continue;
+        const defEntry = this.index.getByNamespace(result.resolvedType);
+        if (!defEntry) continue;
+        return new vscode.Location(
+          vscode.Uri.file(defEntry.filePath),
+          new vscode.Position(result.info.line, 0)
+        );
+      }
+      return undefined;
+    }
 
     const typeName = resolveReceiverType(
       varName, document.uri.fsPath, document, this.symbolCache, this.index

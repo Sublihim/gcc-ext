@@ -4,6 +4,7 @@
 import * as vscode from 'vscode';
 import { NamespaceIndex } from '../index/NamespaceIndex';
 import { SymbolCache } from './SymbolCache';
+import { SymbolInfo } from './SymbolScanner';
 
 /**
  * Ищет @type-аннотацию для поля varName, начиная с файла filePath,
@@ -49,6 +50,44 @@ export function resolveReceiverType(
         varName, parentEntry.filePath, parentDoc,
         symbolCache, index, visited
       );
+      if (result) return result;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Ищет метод methodName в типе typeName и вверх по цепочке @extends.
+ * Не использует @type-аннотации — только ищет prototype/static-ключи в SymbolCache.
+ * Параметр visited защищает от циклов в иерархии.
+ */
+export function resolveMethodInHierarchy(
+  typeName: string,
+  methodName: string,
+  symbolCache: SymbolCache,
+  index: NamespaceIndex,
+  visited: Set<string> = new Set()
+): { resolvedType: string; info: SymbolInfo } | undefined {
+  if (visited.has(typeName)) return undefined;
+  visited.add(typeName);
+
+  const entry = index.getByNamespace(typeName);
+  if (!entry) return undefined;
+
+  const openDoc = vscode.workspace.textDocuments.find(d => d.uri.fsPath === entry.filePath);
+  const symbols = symbolCache.get(entry.filePath, openDoc);
+
+  const protoKey  = `${typeName}.prototype.${methodName}`;
+  const staticKey = `${typeName}.${methodName}`;
+  const info = symbols.get(protoKey) ?? symbols.get(staticKey);
+  if (info) return { resolvedType: typeName, info };
+
+  // Поднимаемся по @extends
+  const classInfo = symbols.get(typeName);
+  if (classInfo?.extends?.length) {
+    for (const parent of classInfo.extends) {
+      const result = resolveMethodInHierarchy(parent, methodName, symbolCache, index, visited);
       if (result) return result;
     }
   }

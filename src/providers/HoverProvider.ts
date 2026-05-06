@@ -4,7 +4,7 @@
 import * as vscode from 'vscode';
 import { NamespaceIndex } from '../index/NamespaceIndex';
 import { SymbolCache } from '../parser/SymbolCache';
-import { resolveReceiverType } from '../parser/InheritanceResolver';
+import { resolveReceiverType, resolveMethodInHierarchy } from '../parser/InheritanceResolver';
 
 const GOOG_CALL_RE = /goog\.(?:require|provide|module|requireType)\s*\(\s*['"]([^'"]+)['"]/;
 
@@ -113,6 +113,11 @@ export class HoverProvider implements vscode.HoverProvider {
     const varName = receiver.startsWith('this.') ? receiver.slice(5) : receiver;
     if (!varName) return undefined;
 
+    // Случай: this.someMethod() — receiver === "this", ищем метод в иерархии классов файла
+    if (varName === 'this') {
+      return this.hoverForThisMethod(method, document);
+    }
+
     const typeName = resolveReceiverType(
       varName, document.uri.fsPath, document, this.symbolCache, this.index
     );
@@ -135,5 +140,27 @@ export class HoverProvider implements vscode.HoverProvider {
     if (info.kind) md.appendMarkdown(` *(${info.kind})*`);
     md.appendMarkdown(`\n\n---\n${info.jsdoc}`);
     return new vscode.Hover(md);
+  }
+
+  /**
+   * Hover для this.someMethod(): определяет классы текущего файла и ищет метод
+   * вверх по цепочке @extends через resolveMethodInHierarchy.
+   */
+  private hoverForThisMethod(
+    method: string,
+    document: vscode.TextDocument
+  ): vscode.Hover | undefined {
+    const entries = this.index.getByFile(document.uri.fsPath);
+    for (const entry of entries) {
+      const result = resolveMethodInHierarchy(entry.namespace, method, this.symbolCache, this.index);
+      if (!result?.info.jsdoc) continue;
+      const { resolvedType, info } = result;
+      const md = new vscode.MarkdownString(undefined, true);
+      md.appendMarkdown(`**${resolvedType}.prototype.${method}**`);
+      if (info.kind) md.appendMarkdown(` *(${info.kind})*`);
+      md.appendMarkdown(`\n\n---\n${info.jsdoc}`);
+      return new vscode.Hover(md);
+    }
+    return undefined;
   }
 }
