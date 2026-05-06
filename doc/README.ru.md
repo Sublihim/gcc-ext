@@ -29,8 +29,8 @@
   "projectRoot": "./js",
   "folders": [
     ".",
-    "../project-a",
-    "../project-b",
+    { "path": "../project-a", "name": "Project A" },
+    { "path": "../project-b", "name": "Project B" },
     "../project-libs"
   ]
 }
@@ -43,7 +43,7 @@
 | `closureLibraryRoot` | Путь к директории `google-closure-library` |
 | `externsGlob` | Glob-паттерны для externs-файлов (необязательно) |
 | `projectRoot` | Корневая директория исходников JS |
-| `folders` | Список папок для Multi-root Workspace VSCode (необязательно) |
+| `folders` | Список папок для Multi-root Workspace VSCode (необязательно). Каждый элемент — строка с путём или объект `{ "path": "...", "name": "..." }` — `name` задаёт метку папки в Explorer |
 
 **2. Откройте папку проекта в VSCode.** Расширение активируется автоматически при обнаружении `gcl.json`.
 
