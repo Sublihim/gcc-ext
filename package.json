@@ -9,12 +9,15 @@
     "url": "https://github.com/Sublihim/gcc-ext"
   },
   "engines": {
-    "vscode": "^1.80.0",
-    "npm": ">=11.0.0"
+    "vscode": "^1.80.0"
   },
-  "categories": ["Programming Languages"],
-  "activationEvents": ["workspaceContains:gcl.json"],
-  "main": "./out/extension",
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "workspaceContains:gcl.json"
+  ],
+  "main": "./dist/extension",
   "contributes": {
     "commands": [
       {
@@ -42,19 +45,19 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "node esbuild.mjs --minify",
+    "compile": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc -p ./ --noEmit",
     "lint": "eslint src --ext ts"
-  },
-  "dependencies": {
-    "typescript": "^5.4.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.80.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
-    "eslint": "^8.57.0"
+    "esbuild": "^0.28.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.0"
   }
 }
