@@ -1,6 +1,6 @@
 # gcc-ext — Google Closure Library Support for VSCode
 
-![Version](https://img.shields.io/github/v/release/Sublihim/gcc-ext)
+[![Version](https://img.shields.io/github/v/release/Sublihim/gcc-ext)](https://github.com/Sublihim/gcc-ext/releases)
 
 [Русский](doc/README.ru.md)
 
@@ -13,6 +13,14 @@ VSCode extension that brings code navigation, autocompletion, and hover info to 
 - **Hover** — Hovering over a namespace string shows the source file path, its `requires` dependencies, and the JSDoc comment from the target file.
 - **Auto-reindex** — Both `deps.js` files are watched; the index updates automatically when they change.
 - **Status bar** — Shows index state: `GCL: indexing...` → `GCL: 4521 ns`.
+
+## Installation
+
+1. Go to the [Releases](https://github.com/Sublihim/gcc-ext/releases) page and download the latest `.vsix` file.
+2. In VSCode open the Command Palette (`Ctrl+Shift+P`) and run **Extensions: Install from VSIX...**.
+3. Select the downloaded `.vsix` file.
+
+The extension activates automatically once `gcl.json` is present in your workspace root (see [Setup](#setup) below).
 
 ## Requirements
 
