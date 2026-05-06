@@ -17,7 +17,7 @@
   "activationEvents": [
     "workspaceContains:gcl.json"
   ],
-  "main": "./out/extension",
+  "main": "./dist/extension",
   "contributes": {
     "commands": [
       {
