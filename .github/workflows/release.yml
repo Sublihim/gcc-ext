@@ -27,7 +27,7 @@ jobs:
           node-version: '24'
 
       - name: Установить зависимости
-        run: npm install
+        run: npm ci
 
       - name: Скомпилировать
         run: npm run compile
