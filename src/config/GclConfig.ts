@@ -4,6 +4,11 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
+export interface FolderEntry {
+  path: string;
+  name?: string;
+}
+
 export interface GclConfig {
   depsFile: string;
   // База для резолва путей в проектном deps.js (gcl.json → depsRoot)
@@ -15,8 +20,8 @@ export interface GclConfig {
   externsGlob: string[];
   projectRoot: string;
   workspaceRoot: string;
-  // Абсолютные пути папок для Multi-root Workspace (gcl.json → folders[])
-  folders: string[];
+  // Папки для Multi-root Workspace (gcl.json → folders[])
+  folders: FolderEntry[];
   // Путь к генерируемому .code-workspace файлу (рядом с gcl.json)
   workspaceFile: string;
 }
@@ -40,9 +45,14 @@ export function loadConfig(workspaceRoot: string): GclConfig | null {
   // относительные пути внутри goog.addDependency(...)
   const googBaseDir = path.join(closureLibraryRoot, 'closure', 'goog');
 
-  // Если folders не задан — по умолчанию только текущая папка (где лежит gcl.json)
-  const rawFolders = (raw['folders'] as string[] | undefined) ?? ['.'];
-  const folders = rawFolders.map(f => path.resolve(workspaceRoot, f));
+  // Поддерживаем строку "./path" и объект { path, name }
+  const rawFolders = (raw['folders'] as Array<string | { path: string; name?: string }> | undefined) ?? ['.'];
+  const folders: FolderEntry[] = rawFolders.map(f => {
+    if (typeof f === 'string') {
+      return { path: path.resolve(workspaceRoot, f) };
+    }
+    return { path: path.resolve(workspaceRoot, f.path), name: f.name };
+  });
 
   return {
     depsFile: path.resolve(workspaceRoot, (raw['depsFile'] as string | undefined) ?? './deps.js'),

@@ -1,5 +1,7 @@
 # gcc-ext — Google Closure Library Support for VSCode
 
+![Version](https://img.shields.io/github/v/release/Sublihim/gcc-ext)
+
 [Русский](doc/README.ru.md)
 
 VSCode extension that brings code navigation, autocompletion, and hover info to legacy [Google Closure Library](https://github.com/google/closure-library) projects using `goog.require` / `goog.provide`.
@@ -31,8 +33,8 @@ VSCode extension that brings code navigation, autocompletion, and hover info to 
   "projectRoot": "./js",
   "folders": [
     ".",
-    "../project-a",
-    "../project-b",
+    { "path": "../project-a", "name": "Project A" },
+    { "path": "../project-b", "name": "Project B" },
     "../project-libs"
   ]
 }
@@ -45,7 +47,7 @@ VSCode extension that brings code navigation, autocompletion, and hover info to 
 | `closureLibraryRoot` | Path to the `google-closure-library` directory |
 | `externsGlob` | Glob patterns for extern files (optional) |
 | `projectRoot` | Root directory of your JS source files |
-| `folders` | List of folders to include in the VSCode Multi-root Workspace (optional) |
+| `folders` | List of folders for Multi-root Workspace (optional). Each entry is a path string or an object `{ "path": "...", "name": "..." }` — `name` sets the folder label in the Explorer |
 
 **2. Open the project folder in VSCode.** The extension activates automatically when `gcl.json` is detected.
 

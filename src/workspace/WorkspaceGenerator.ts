@@ -10,9 +10,10 @@ export function generateWorkspaceFile(config: GclConfig): vscode.Uri {
   const workspaceDir = path.dirname(config.workspaceFile);
 
   // Пути в .code-workspace должны быть относительными от директории самого файла
-  const folders = config.folders.map(absPath => ({
-    path: path.relative(workspaceDir, absPath).replace(/\\/g, '/') || '.',
-  }));
+  const folders = config.folders.map(entry => {
+    const rel = path.relative(workspaceDir, entry.path).replace(/\\/g, '/') || '.';
+    return entry.name ? { path: rel, name: entry.name } : { path: rel };
+  });
 
   const content = JSON.stringify({ folders, settings: {} }, null, 2);
   fs.writeFileSync(config.workspaceFile, content, 'utf8');
