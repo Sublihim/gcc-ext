@@ -2,30 +2,68 @@
 // Copyright (c) 2026 Sublihim. Co-authored with Claude Sonnet 4.6 (Anthropic).
 
 import * as vscode from 'vscode';
-import * as fs from 'fs';
 import { NamespaceIndex } from '../index/NamespaceIndex';
+import { SymbolCache } from '../parser/SymbolCache';
+import { resolveTypes } from '../parser/TypeResolver';
 
 const GOOG_CALL_RE = /goog\.(?:require|provide|module|requireType)\s*\(\s*['"]([^'"]+)['"]/;
 
 export class HoverProvider implements vscode.HoverProvider {
-  constructor(private readonly index: NamespaceIndex) {}
+  constructor(
+    private readonly index: NamespaceIndex,
+    private readonly symbolCache: SymbolCache,
+  ) {}
 
   provideHover(
     document: vscode.TextDocument,
     position: vscode.Position
   ): vscode.Hover | undefined {
+
+    // --- Шаг 1: строка goog.require/provide/module/requireType ---
     const line = document.lineAt(position.line).text;
-    const m = GOOG_CALL_RE.exec(line);
-    if (!m) return undefined;
+    const googMatch = GOOG_CALL_RE.exec(line);
+    if (googMatch) {
+      const nsStart = line.indexOf(googMatch[1]);
+      const nsEnd = nsStart + googMatch[1].length;
+      if (position.character >= nsStart && position.character <= nsEnd) {
+        return this.hoverForNamespace(googMatch[1], document);
+      }
+    }
 
-    // Показываем hover только если курсор стоит внутри строки с неймспейсом
-    const nsStart = line.indexOf(m[1]);
-    const nsEnd = nsStart + m[1].length;
-    if (position.character < nsStart || position.character > nsEnd) return undefined;
+    // --- Шаг 2 + 3: символ или метод в коде ---
+    const wordRange = document.getWordRangeAtPosition(position, /[\w.]+/);
+    if (!wordRange) return undefined;
+    const word = document.getText(wordRange);
 
-    const ns = m[1];
+    // Шаг 2: прямое совпадение с namespace в индексе (перебор суффиксов)
+    const parts = word.split('.');
+    for (let len = parts.length; len > 0; len--) {
+      const candidate = parts.slice(0, len).join('.');
+      const entry = this.index.getByNamespace(candidate);
+      if (entry) {
+        return this.hoverForNamespace(candidate, document);
+      }
+    }
+
+    // Шаг 3: тип-инференс для метода — receiver.method()
+    if (word.includes('.')) {
+      return this.hoverForMethod(word, document, position);
+    }
+
+    return undefined;
+  }
+
+  /** Собирает hover-карточку для namespace из индекса */
+  private hoverForNamespace(
+    ns: string,
+    document: vscode.TextDocument
+  ): vscode.Hover | undefined {
     const entry = this.index.getByNamespace(ns);
     if (!entry) return undefined;
+
+    const openDoc = vscode.workspace.textDocuments.find(d => d.uri.fsPath === entry.filePath);
+    const symbols = this.symbolCache.get(entry.filePath, openDoc);
+    const info = symbols.get(ns);
 
     const md = new vscode.MarkdownString(undefined, true);
     md.appendCodeblock(entry.filePath, 'text');
@@ -34,56 +72,67 @@ export class HoverProvider implements vscode.HoverProvider {
       md.appendMarkdown('\n**type:** `goog.module`');
     }
 
+    if (info?.kind) {
+      md.appendMarkdown(`\n**kind:** \`${info.kind}\``);
+    }
+    if (info?.extends?.length) {
+      md.appendMarkdown(`\n**extends:** \`${info.extends.join('`, `')}\``);
+    }
+    if (info?.implements?.length) {
+      md.appendMarkdown(`\n**implements:** \`${info.implements.join('`, `')}\``);
+    }
+
     if (entry.requires.length > 0) {
       md.appendMarkdown(`\n**requires:** \`${entry.requires.join('`, `')}\``);
     }
 
-    const jsdoc = this.readJsdoc(entry.filePath, ns);
-    if (jsdoc) {
-      md.appendMarkdown(`\n\n---\n${jsdoc}`);
+    if (info?.jsdoc) {
+      md.appendMarkdown(`\n\n---\n${info.jsdoc}`);
     }
 
     return new vscode.Hover(md);
   }
 
-  // Читает JSDoc-комментарий перед строкой goog.provide/goog.module в целевом файле.
-  // Ищем только в первых 100 строках — объявление всегда в шапке файла.
-  private readJsdoc(filePath: string, namespace: string): string | undefined {
-    try {
-      const content = fs.readFileSync(filePath, 'utf8');
-      const lines = content.split('\n');
-      const patterns = [
-        `goog.provide('${namespace}')`, `goog.provide("${namespace}")`,
-        `goog.module('${namespace}')`,  `goog.module("${namespace}")`,
-      ];
+  /**
+   * Тип-инференс для вызова метода: receiver.method.
+   * Ищет @type-аннотацию на receiver в текущем документе,
+   * затем находит TypeName.prototype.method в SymbolCache.
+   */
+  private hoverForMethod(
+    word: string,
+    document: vscode.TextDocument,
+    _position: vscode.Position
+  ): vscode.Hover | undefined {
+    const lastDot = word.lastIndexOf('.');
+    if (lastDot < 0) return undefined;
 
-      for (let i = 0; i < Math.min(lines.length, 100); i++) {
-        if (!patterns.some(p => lines[i].includes(p))) continue;
+    const receiver = word.slice(0, lastDot);   // "this.color_" или "color_" или "c"
+    const method   = word.slice(lastDot + 1);   // "getColor"
 
-        // Поднимаемся вверх от строки goog.provide, собирая строки комментария.
-        // Останавливаемся на первой непустой и не-комментарной строке.
-        const commentLines: string[] = [];
-        for (let j = i - 1; j >= 0 && j >= i - 20; j--) {
-          const trimmed = lines[j].trim();
-          if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
-            commentLines.unshift(lines[j]);
-          } else {
-            break;
-          }
-        }
+    // Нормализуем receiver: убираем ведущий "this."
+    const varName = receiver.startsWith('this.') ? receiver.slice(5) : receiver;
+    if (!varName) return undefined;
 
-        const raw = commentLines.join('\n').trim();
-        if (!raw || !raw.includes('/*')) return undefined;
-        // Убираем маркеры /** и */ и ведущие " * " для отображения в Markdown
-        return raw
-          .replace(/^\/\*+/, '')
-          .replace(/\*+\/$/, '')
-          .replace(/^\s*\*\s?/gm, '')
-          .trim();
-      }
-    } catch {
-      // файл недоступен
-    }
-    return undefined;
+    const typeMap = resolveTypes(document.getText());
+    const typeName = typeMap.get(varName);
+    if (!typeName) return undefined;
+
+    const entry = this.index.getByNamespace(typeName);
+    if (!entry) return undefined;
+
+    const openDoc = vscode.workspace.textDocuments.find(d => d.uri.fsPath === entry.filePath);
+    const symbols = this.symbolCache.get(entry.filePath, openDoc);
+
+    // Пробуем prototype-метод, затем статический
+    const protoKey  = `${typeName}.prototype.${method}`;
+    const staticKey = `${typeName}.${method}`;
+    const info = symbols.get(protoKey) ?? symbols.get(staticKey);
+    if (!info?.jsdoc) return undefined;
+
+    const md = new vscode.MarkdownString(undefined, true);
+    md.appendMarkdown(`**${typeName}.prototype.${method}**`);
+    if (info.kind) md.appendMarkdown(` *(${info.kind})*`);
+    md.appendMarkdown(`\n\n---\n${info.jsdoc}`);
+    return new vscode.Hover(md);
   }
 }
