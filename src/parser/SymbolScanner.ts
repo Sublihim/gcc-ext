@@ -103,8 +103,7 @@ function getDottedName(node: ts.Expression): string | undefined {
 export function scanSymbols(content: string, filePath: string): Map<string, SymbolInfo> {
   const symbols = new Map<string, SymbolInfo>();
 
-  const sf = ts.createSourceFile(filePath, content, ts.ScriptTarget.ES5, /*setParentNodes*/ true);
-  const lines = content.split('\n');
+  const sf = ts.createSourceFile(filePath, content, ts.ScriptTarget.ES5, /*setParentNodes*/ false);
 
   function lineOf(pos: number): number {
     // ts.getLineAndCharacterOfPosition надёжнее ручного split

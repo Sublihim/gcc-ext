@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { NamespaceIndex } from '../index/NamespaceIndex';
 import { SymbolCache } from '../parser/SymbolCache';
+import { resolveReceiverType } from '../parser/InheritanceResolver';
 
 const GOOG_CALL_RE = /goog\.(?:require|provide|module|requireType)\s*\(\s*['"]([^'"]+)['"]/;
 
@@ -19,14 +20,16 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
     position: vscode.Position
   ): vscode.Definition | undefined {
     const ns = this.extractNamespaceAtPosition(document, position);
-    if (!ns) return undefined;
+    if (ns) {
+      const entry = this.index.getByNamespace(ns);
+      if (!entry) return undefined;
+      const uri = vscode.Uri.file(entry.filePath);
+      const targetPos = this.findDefinitionPosition(entry.filePath, ns);
+      return new vscode.Location(uri, targetPos);
+    }
 
-    const entry = this.index.getByNamespace(ns);
-    if (!entry) return undefined;
-
-    const uri = vscode.Uri.file(entry.filePath);
-    const targetPos = this.findDefinitionPosition(entry.filePath, ns);
-    return new vscode.Location(uri, targetPos);
+    // Fallback: type-inference для receiver.method() через цепочку наследования
+    return this.resolveMethodDefinition(document, position);
   }
 
   private extractNamespaceAtPosition(
@@ -58,6 +61,50 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
     }
 
     return undefined;
+  }
+
+  /**
+   * Разрешает переход к определению метода через тип-инференс.
+   * Используется когда стандартный поиск по namespace-индексу не дал результата —
+   * например, cursor на someMethod в this.someMember.someMethod(), где тип someMember
+   * объявлен через @type в базовом классе.
+   */
+  private resolveMethodDefinition(
+    document: vscode.TextDocument,
+    position: vscode.Position
+  ): vscode.Location | undefined {
+    const wordRange = document.getWordRangeAtPosition(position, /[\w.]+/);
+    if (!wordRange) return undefined;
+    const word = document.getText(wordRange);
+    if (!word.includes('.')) return undefined;
+
+    const lastDot = word.lastIndexOf('.');
+    const receiver = word.slice(0, lastDot);
+    const method = word.slice(lastDot + 1);
+
+    const varName = receiver.startsWith('this.') ? receiver.slice(5) : receiver;
+    if (!varName) return undefined;
+
+    const typeName = resolveReceiverType(
+      varName, document.uri.fsPath, document, this.symbolCache, this.index
+    );
+    if (!typeName) return undefined;
+
+    const entry = this.index.getByNamespace(typeName);
+    if (!entry) return undefined;
+
+    const openDoc = vscode.workspace.textDocuments.find(d => d.uri.fsPath === entry.filePath);
+    const symbols = this.symbolCache.get(entry.filePath, openDoc);
+
+    const protoKey = `${typeName}.prototype.${method}`;
+    const staticKey = `${typeName}.${method}`;
+    const info = symbols.get(protoKey) ?? symbols.get(staticKey);
+    if (!info) return undefined;
+
+    return new vscode.Location(
+      vscode.Uri.file(entry.filePath),
+      new vscode.Position(info.line, 0)
+    );
   }
 
   /**

@@ -4,6 +4,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { SymbolInfo, scanSymbols } from './SymbolScanner';
+import { resolveTypes } from './TypeResolver';
 
 // Максимальное количество файлов в LRU-кеше.
 // 64 достаточно для типичной рабочей сессии и не создаёт давления на память
@@ -14,6 +15,8 @@ interface CacheEntry {
   /** Версия контента: document.version для открытых файлов, mtime для закрытых */
   key: string;
   symbols: Map<string, SymbolInfo>;
+  /** Результат resolveTypes: varName → typeName. Кешируется вместе с символами */
+  typeMap: Map<string, string>;
 }
 
 /**
@@ -76,10 +79,20 @@ export class SymbolCache implements vscode.Disposable {
       return cached.symbols;
     }
 
-    // Пересканируем файл
+    // Пересканируем файл; resolveTypes запускается один раз и кешируется
     const symbols = scanSymbols(content, filePath);
-    this.set(filePath, { key, symbols });
+    const typeMap = resolveTypes(content);
+    this.set(filePath, { key, symbols, typeMap });
     return symbols;
+  }
+
+  /**
+   * Возвращает кешированную карту @type-аннотаций для файла.
+   * Вызывает get() чтобы убедиться, что запись актуальна.
+   */
+  getTypeMap(filePath: string, document?: vscode.TextDocument): Map<string, string> {
+    this.get(filePath, document);
+    return this.lru.get(filePath)?.typeMap ?? new Map();
   }
 
   invalidate(filePath: string): void {

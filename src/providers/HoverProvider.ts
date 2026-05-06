@@ -4,7 +4,7 @@
 import * as vscode from 'vscode';
 import { NamespaceIndex } from '../index/NamespaceIndex';
 import { SymbolCache } from '../parser/SymbolCache';
-import { resolveTypes } from '../parser/TypeResolver';
+import { resolveReceiverType } from '../parser/InheritanceResolver';
 
 const GOOG_CALL_RE = /goog\.(?:require|provide|module|requireType)\s*\(\s*['"]([^'"]+)['"]/;
 
@@ -113,8 +113,9 @@ export class HoverProvider implements vscode.HoverProvider {
     const varName = receiver.startsWith('this.') ? receiver.slice(5) : receiver;
     if (!varName) return undefined;
 
-    const typeMap = resolveTypes(document.getText());
-    const typeName = typeMap.get(varName);
+    const typeName = resolveReceiverType(
+      varName, document.uri.fsPath, document, this.symbolCache, this.index
+    );
     if (!typeName) return undefined;
 
     const entry = this.index.getByNamespace(typeName);
