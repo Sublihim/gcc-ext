@@ -11,8 +11,9 @@ VSCode-расширение для поддержки Google Closure Library (le
 
 ```bash
 npm install          # установить зависимости
-npm run compile      # однократная сборка (tsc)
-npm run watch        # watch-режим для разработки
+npm run compile      # однократная сборка (esbuild → dist/extension.js)
+npm run watch        # watch-режим для разработки (esbuild)
+npm run typecheck    # проверка типов без сборки (tsc --noEmit)
 vsce package         # собрать .vsix для установки
 ```
 
