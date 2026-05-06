@@ -1,5 +1,7 @@
 # gcc-ext — Google Closure Library Support for VSCode
 
+![Version](https://img.shields.io/github/v/release/Sublihim/gcc-ext)
+
 [Русский](doc/README.ru.md)
 
 VSCode extension that brings code navigation, autocompletion, and hover info to legacy [Google Closure Library](https://github.com/google/closure-library) projects using `goog.require` / `goog.provide`.
