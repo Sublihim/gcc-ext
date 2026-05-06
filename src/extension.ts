@@ -7,6 +7,7 @@ import { IndexManager } from './index/IndexManager';
 import { DefinitionProvider } from './providers/DefinitionProvider';
 import { CompletionProvider } from './providers/CompletionProvider';
 import { HoverProvider } from './providers/HoverProvider';
+import { SymbolCache } from './parser/SymbolCache';
 import { generateWorkspaceFile } from './workspace/WorkspaceGenerator';
 
 let indexManager: IndexManager | undefined;
@@ -37,6 +38,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   }
 
   const { index } = indexManager;
+  const symbolCache = new SymbolCache();
   const JS_SELECTOR = { language: 'javascript', scheme: 'file' };
 
   // Вотчер на gcl.json — предлагаем перезагрузить окно при изменении конфига
@@ -57,9 +59,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   context.subscriptions.push(
     indexManager,
+    symbolCache,
     configWatcher,
 
-    vscode.languages.registerDefinitionProvider(JS_SELECTOR, new DefinitionProvider(index)),
+    vscode.languages.registerDefinitionProvider(JS_SELECTOR, new DefinitionProvider(index, symbolCache)),
 
     vscode.languages.registerCompletionItemProvider(
       JS_SELECTOR,
@@ -67,7 +70,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       "'", '"'
     ),
 
-    vscode.languages.registerHoverProvider(JS_SELECTOR, new HoverProvider(index)),
+    vscode.languages.registerHoverProvider(JS_SELECTOR, new HoverProvider(index, symbolCache)),
 
     vscode.commands.registerCommand('gcl.showStats', () => {
       vscode.window.showInformationMessage(
