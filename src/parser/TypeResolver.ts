@@ -18,8 +18,8 @@ const AT_TYPE_RE = /@type\s*\{([^}]+)\}/;
  */
 export function resolveTypes(content: string): Map<string, string> {
   const result = new Map<string, string>();
-  // setParentNodes=false — не нужны родители; getLeadingCommentRanges работает без них
-  const sf = ts.createSourceFile('__type__.js', content, ts.ScriptTarget.ES5, false);
+  // setParentNodes=false — достаточно для forEachChild + getLeadingCommentRanges
+  const sf = ts.createSourceFile('__type__.js', content, ts.ScriptTarget.Latest, false);
 
   function getTypeAnnotation(nodePos: number): string | undefined {
     const ranges = ts.getLeadingCommentRanges(content, nodePos);

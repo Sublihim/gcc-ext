@@ -81,6 +81,14 @@ export class SymbolCache implements vscode.Disposable {
     // Пересканируем файл; resolveTypes запускается один раз и кешируется
     const symbols = scanSymbols(content, filePath);
     const typeMap = resolveTypes(content);
+
+    // Не кешируем пустой результат для непустого файла: если парсер ничего не нашёл,
+    // следующий вызов повторит сканирование после возможного фикса или перезапуска
+    if (symbols.size === 0 && typeMap.size === 0 && content.trim().length > 0) {
+      console.warn('[SymbolCache] пустой результат сканирования, файл не закеширован:', filePath);
+      return symbols;
+    }
+
     this.set(filePath, { key, symbols, typeMap });
     return symbols;
   }

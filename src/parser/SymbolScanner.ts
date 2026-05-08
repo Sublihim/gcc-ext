@@ -103,7 +103,9 @@ function getDottedName(node: ts.Expression): string | undefined {
 export function scanSymbols(content: string, filePath: string): Map<string, SymbolInfo> {
   const symbols = new Map<string, SymbolInfo>();
 
-  const sf = ts.createSourceFile(filePath, content, ts.ScriptTarget.ES5, /*setParentNodes*/ false);
+  // Latest — принимает весь современный JS без тихих parse-ошибок; setParentNodes=true
+  // страхует getStart(sf) на дочерних узлах класса в handleClassExpression
+  const sf = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, /*setParentNodes*/ true);
 
   function lineOf(pos: number): number {
     // ts.getLineAndCharacterOfPosition надёжнее ручного split
@@ -167,6 +169,15 @@ export function scanSymbols(content: string, filePath: string): Map<string, Symb
     // ClassDeclaration: class Foo { ... } — типичный паттерн goog.module
     if (ts.isClassDeclaration(stmt) && stmt.name) {
       handleClassExpression(stmt.name.text, stmt, stmt.getStart(sf));
+      return;
+    }
+
+    // FunctionDeclaration: function Foo() { ... } — паттерн goog.module и legacy GCL
+    if (ts.isFunctionDeclaration(stmt) && stmt.name) {
+      const info: SymbolInfo = { line: lineOf(stmt.getStart(sf)) };
+      const jsdocRaw = getLeadingJsdoc(content, stmt.pos);
+      if (jsdocRaw) parseJsdocMeta(jsdocRaw, info);
+      symbols.set(stmt.name.text, info);
       return;
     }
 
@@ -254,9 +265,25 @@ export function scanSymbols(content: string, filePath: string): Map<string, Symb
     }
   }
 
-  // Обходим только верхний уровень — все GCL-определения там
+  // Разворачивает goog.scope(function() { ... }) → массив внутренних statements
+  function unwrapGoogScope(stmt: ts.Statement): readonly ts.Statement[] | null {
+    if (!ts.isExpressionStatement(stmt)) return null;
+    const expr = stmt.expression;
+    if (!ts.isCallExpression(expr)) return null;
+    if (getDottedName(expr.expression) !== 'goog.scope') return null;
+    const arg = expr.arguments[0];
+    if (!arg || !ts.isFunctionExpression(arg)) return null;
+    return arg.body.statements;
+  }
+
+  // Обходим верхний уровень; goog.scope прозрачно разворачиваем на один уровень
   for (const stmt of sf.statements) {
-    visitStatement(stmt);
+    const inner = unwrapGoogScope(stmt);
+    if (inner) {
+      for (const s of inner) visitStatement(s);
+    } else {
+      visitStatement(stmt);
+    }
   }
 
   return symbols;
