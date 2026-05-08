@@ -104,3 +104,52 @@ describe('DefinitionProvider', () => {
     expect(result).toBeUndefined();
   });
 });
+
+describe('DefinitionProvider — статический ES5-класс (регрессия)', () => {
+  let index: NamespaceIndex;
+  let cache: SymbolCache;
+  let provider: DefinitionProvider;
+
+  const staticPath = path.join(FIXTURES, 'es5_static.js');
+
+  beforeEach(() => {
+    index = new NamespaceIndex();
+    cache = new SymbolCache();
+    provider = new DefinitionProvider(index, cache);
+    index.add(makeEntry('myapp.StaticES5', staticPath));
+  });
+
+  it('курсор на create → переходит к методу create, а не к goog.provide', () => {
+    // Регрессия: без фикса попадали на goog.provide('myapp.StaticES5')
+    const line = 'const obj = myapp.StaticES5.create();';
+    const doc = makeTextDocument('/project/foo.js', line);
+    // Курсор на 'create' (символ 28)
+    const pos = new Position(0, 28);
+    const result = provider.provideDefinition(doc, pos) as any;
+    expect(result).toBeDefined();
+    expect(result!.uri.fsPath).toBe(staticPath);
+    // Строка с goog.provide — 2, строка с create — должна быть позже
+    const line0Content = fs.readFileSync(staticPath, 'utf8').split('\n');
+    const provideLine = line0Content.findIndex(l => l.includes("goog.provide('myapp.StaticES5')"));
+    expect(result!.range.start.line).toBeGreaterThan(provideLine);
+  });
+
+  it('курсор на log → переходит к методу log', () => {
+    const line = 'myapp.StaticES5.log(msg);';
+    const doc = makeTextDocument('/project/foo.js', line);
+    const pos = new Position(0, 18); // курсор на 'log'
+    const result = provider.provideDefinition(doc, pos) as any;
+    expect(result).toBeDefined();
+    const lineText = fs.readFileSync(staticPath, 'utf8').split('\n')[result!.range.start.line];
+    expect(lineText).toContain('log');
+  });
+
+  it('курсор на namespace myapp.StaticES5 в goog.require → переходит в файл (goog.provide)', () => {
+    const line = "goog.require('myapp.StaticES5');";
+    const doc = makeTextDocument('/project/foo.js', line);
+    const pos = new Position(0, 20);
+    const result = provider.provideDefinition(doc, pos) as any;
+    expect(result).toBeDefined();
+    expect(result!.uri.fsPath).toBe(staticPath);
+  });
+});

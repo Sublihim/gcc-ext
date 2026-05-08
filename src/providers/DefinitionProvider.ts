@@ -25,7 +25,11 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
       const entry = this.index.getByNamespace(ns);
       if (!entry) return undefined;
       const uri = vscode.Uri.file(entry.filePath);
-      const targetPos = this.findDefinitionPosition(entry.filePath, ns);
+      // Передаём полное слово под курсором: если курсор стоит на myapp.StaticES5.create,
+      // ns='myapp.StaticES5', но символ create нужно искать по полному ключу.
+      const wordRange = document.getWordRangeAtPosition(position, /[\w.]+/);
+      const fullWord = wordRange ? document.getText(wordRange) : ns;
+      const targetPos = this.findDefinitionPosition(entry.filePath, ns, fullWord !== ns ? fullWord : undefined);
       return new vscode.Location(uri, targetPos);
     }
 
@@ -138,14 +142,16 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
    * Определяет позицию фактического определения символа в файле.
    * Приоритет: AST-символ из SymbolCache → goog.provide/module (fallback) → начало файла.
    */
-  private findDefinitionPosition(filePath: string, namespace: string): vscode.Position {
+  private findDefinitionPosition(filePath: string, namespace: string, fullSymbol?: string): vscode.Position {
     const openDoc = vscode.workspace.textDocuments.find(d => d.uri.fsPath === filePath);
     const symbols = this.symbolCache.get(filePath, openDoc);
 
-    const info = symbols.get(namespace);
+    // Приоритет: полный ключ (myapp.StaticES5.create или myapp.Foo.prototype.getName)
+    // перед коротким namespace (myapp.StaticES5 / myapp.Foo).
+    const resolvedKey = (fullSymbol && symbols.has(fullSymbol)) ? fullSymbol : namespace;
+    const info = symbols.get(resolvedKey);
     if (info) {
-      // Ищем точную колонку — последний сегмент dotted-имени в строке
-      const shortName = namespace.includes('.') ? namespace.split('.').pop()! : namespace;
+      const shortName = resolvedKey.includes('.') ? resolvedKey.split('.').pop()! : resolvedKey;
       return new vscode.Position(
         info.line,
         this.getSymbolColumn(filePath, info.line, shortName, openDoc)
