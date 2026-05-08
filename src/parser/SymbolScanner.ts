@@ -164,6 +164,30 @@ export function scanSymbols(content: string, filePath: string): Map<string, Symb
 
   /** Обходит один Statement верхнего уровня */
   function visitStatement(stmt: ts.Statement): void {
+    // ClassDeclaration: class Foo { ... } — типичный паттерн goog.module
+    if (ts.isClassDeclaration(stmt) && stmt.name) {
+      handleClassExpression(stmt.name.text, stmt, stmt.getStart(sf));
+      return;
+    }
+
+    // VariableStatement: const/var/let Foo = function() {} или = class {}
+    if (ts.isVariableStatement(stmt)) {
+      for (const decl of stmt.declarationList.declarations) {
+        if (!ts.isIdentifier(decl.name) || !decl.initializer) continue;
+        const name = decl.name.text;
+        const initKind = decl.initializer.kind;
+        if (initKind === ts.SyntaxKind.FunctionExpression || initKind === ts.SyntaxKind.ArrowFunction) {
+          const info: SymbolInfo = { line: lineOf(stmt.getStart(sf)) };
+          const jsdocRaw = getLeadingJsdoc(content, stmt.pos);
+          if (jsdocRaw) parseJsdocMeta(jsdocRaw, info);
+          symbols.set(name, info);
+        } else if (initKind === ts.SyntaxKind.ClassExpression) {
+          handleClassExpression(name, decl.initializer as ts.ClassExpression, stmt.getStart(sf));
+        }
+      }
+      return;
+    }
+
     // ExpressionStatement: X = function/class, или goog.inherits(...)
     if (!ts.isExpressionStatement(stmt)) return;
     const expr = stmt.expression;

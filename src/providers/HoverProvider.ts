@@ -63,14 +63,11 @@ export class HoverProvider implements vscode.HoverProvider {
 
     // openTextDocument открывает файл в памяти без вкладки; VSCode кеширует его,
     // поэтому повторные вызовы не перечитывают диск
-    let entryDoc: vscode.TextDocument | undefined;
-    try {
-      entryDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(entry.filePath));
-    } catch {
-      // файл временно недоступен — SymbolCache прочитает через fs.readFileSync
-    }
+    const entryDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(entry.filePath));
     const symbols = this.symbolCache.get(entry.filePath, entryDoc);
-    const info = symbols.get(ns);
+    // В goog.module-файлах класс объявлен под коротким именем (Foo), а не полным namespace (myapp.Foo)
+    const shortName = ns.slice(ns.lastIndexOf('.') + 1);
+    const info = symbols.get(ns) ?? (entry.moduleType === 'goog' ? symbols.get(shortName) : undefined);
 
     const md = new vscode.MarkdownString(undefined, true);
     md.appendCodeblock(entry.filePath, 'text');
@@ -133,12 +130,7 @@ export class HoverProvider implements vscode.HoverProvider {
     const entry = this.index.getByNamespace(typeName);
     if (!entry) return undefined;
 
-    let entryDoc: vscode.TextDocument | undefined;
-    try {
-      entryDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(entry.filePath));
-    } catch {
-      // файл временно недоступен — SymbolCache прочитает через fs.readFileSync
-    }
+    const entryDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(entry.filePath));
     const symbols = this.symbolCache.get(entry.filePath, entryDoc);
 
     // Пробуем prototype-метод, затем статический
