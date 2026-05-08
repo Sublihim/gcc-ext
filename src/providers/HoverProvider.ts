@@ -14,10 +14,10 @@ export class HoverProvider implements vscode.HoverProvider {
     private readonly symbolCache: SymbolCache,
   ) {}
 
-  provideHover(
+  async provideHover(
     document: vscode.TextDocument,
     position: vscode.Position
-  ): vscode.Hover | undefined {
+  ): Promise<vscode.Hover | undefined> {
 
     // --- Шаг 1: строка goog.require/provide/module/requireType ---
     const line = document.lineAt(position.line).text;
@@ -54,15 +54,22 @@ export class HoverProvider implements vscode.HoverProvider {
   }
 
   /** Собирает hover-карточку для namespace из индекса */
-  private hoverForNamespace(
+  private async hoverForNamespace(
     ns: string,
     document: vscode.TextDocument
-  ): vscode.Hover | undefined {
+  ): Promise<vscode.Hover | undefined> {
     const entry = this.index.getByNamespace(ns);
     if (!entry) return undefined;
 
-    const openDoc = vscode.workspace.textDocuments.find(d => d.uri.fsPath === entry.filePath);
-    const symbols = this.symbolCache.get(entry.filePath, openDoc);
+    // openTextDocument открывает файл в памяти без вкладки; VSCode кеширует его,
+    // поэтому повторные вызовы не перечитывают диск
+    let entryDoc: vscode.TextDocument | undefined;
+    try {
+      entryDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(entry.filePath));
+    } catch {
+      // файл временно недоступен — SymbolCache прочитает через fs.readFileSync
+    }
+    const symbols = this.symbolCache.get(entry.filePath, entryDoc);
     const info = symbols.get(ns);
 
     const md = new vscode.MarkdownString(undefined, true);
@@ -98,11 +105,11 @@ export class HoverProvider implements vscode.HoverProvider {
    * Ищет @type-аннотацию на receiver в текущем документе,
    * затем находит TypeName.prototype.method в SymbolCache.
    */
-  private hoverForMethod(
+  private async hoverForMethod(
     word: string,
     document: vscode.TextDocument,
     _position: vscode.Position
-  ): vscode.Hover | undefined {
+  ): Promise<vscode.Hover | undefined> {
     const lastDot = word.lastIndexOf('.');
     if (lastDot < 0) return undefined;
 
@@ -126,8 +133,13 @@ export class HoverProvider implements vscode.HoverProvider {
     const entry = this.index.getByNamespace(typeName);
     if (!entry) return undefined;
 
-    const openDoc = vscode.workspace.textDocuments.find(d => d.uri.fsPath === entry.filePath);
-    const symbols = this.symbolCache.get(entry.filePath, openDoc);
+    let entryDoc: vscode.TextDocument | undefined;
+    try {
+      entryDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(entry.filePath));
+    } catch {
+      // файл временно недоступен — SymbolCache прочитает через fs.readFileSync
+    }
+    const symbols = this.symbolCache.get(entry.filePath, entryDoc);
 
     // Пробуем prototype-метод, затем статический
     const protoKey  = `${typeName}.prototype.${method}`;
@@ -146,10 +158,10 @@ export class HoverProvider implements vscode.HoverProvider {
    * Hover для this.someMethod(): определяет классы текущего файла и ищет метод
    * вверх по цепочке @extends через resolveMethodInHierarchy.
    */
-  private hoverForThisMethod(
+  private async hoverForThisMethod(
     method: string,
     document: vscode.TextDocument
-  ): vscode.Hover | undefined {
+  ): Promise<vscode.Hover | undefined> {
     const entries = this.index.getByFile(document.uri.fsPath);
     for (const entry of entries) {
       const result = resolveMethodInHierarchy(entry.namespace, method, this.symbolCache, this.index);
