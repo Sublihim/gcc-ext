@@ -45,38 +45,37 @@ export class SymbolCache implements vscode.Disposable {
    * Иначе читает с диска и сверяет mtime.
    */
   get(filePath: string, document?: vscode.TextDocument): Map<string, SymbolInfo> {
-    let content: string;
+    // Фаза 1: определяем ключ версии (без чтения контента)
     let key: string;
-
     if (document) {
-      content = document.getText();
       key = String(document.version);
     } else {
-      // Для закрытых файлов используем mtime как ключ версии
       try {
-        const stat = fs.statSync(filePath);
-        key = String(stat.mtimeMs);
+        key = String(fs.statSync(filePath).mtimeMs);
       } catch {
-        // Файл недоступен — возвращаем пустую карту, не кешируем
-        return new Map();
-      }
-      // Проверяем кеш до дорогостоящего чтения файла
-      const cached = this.lru.get(filePath);
-      if (cached && cached.key === key) {
-        this.touch(filePath, cached);
-        return cached.symbols;
-      }
-      try {
-        content = fs.readFileSync(filePath, 'utf8');
-      } catch {
+        console.warn('[SymbolCache] не удалось получить stat для файла:', filePath);
         return new Map();
       }
     }
 
+    // Фаза 2: единая проверка кэша
     const cached = this.lru.get(filePath);
     if (cached && cached.key === key) {
       this.touch(filePath, cached);
       return cached.symbols;
+    }
+
+    // Фаза 3: читаем контент только при промахе кэша
+    let content: string;
+    if (document) {
+      content = document.getText();
+    } else {
+      try {
+        content = fs.readFileSync(filePath, 'utf8');
+      } catch {
+        console.warn('[SymbolCache] не удалось прочитать файл:', filePath);
+        return new Map();
+      }
     }
 
     // Пересканируем файл; resolveTypes запускается один раз и кешируется

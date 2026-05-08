@@ -4,8 +4,9 @@
 import * as vscode from 'vscode';
 import { NamespaceIndex } from '../index/NamespaceIndex';
 
-// Detects we are inside the string argument of goog.require/provide/requireType and captures the prefix typed so far
-const IN_GOOG_REQUIRE_RE = /goog\.(?:require|provide|requireType)\s*\(\s*['"]([^'"]*)/;
+// Поддерживает только однострочные вызовы goog.require/provide/requireType.
+// Для полной поддержки многострочных вызовов потребуется AST-анализ открытого документа.
+const IN_GOOG_REQUIRE_RE = /goog\.(?:require|provide|requireType)\s*\(\s*(['"])([^'"]*)/;
 
 export class CompletionProvider implements vscode.CompletionItemProvider {
   constructor(private readonly index: NamespaceIndex) {}
@@ -14,23 +15,42 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
     document: vscode.TextDocument,
     position: vscode.Position
   ): vscode.CompletionItem[] | undefined {
-    const linePrefix = document.lineAt(position.line).text.substring(0, position.character);
+    const lineText = document.lineAt(position.line).text;
+    const linePrefix = lineText.substring(0, position.character);
     const m = IN_GOOG_REQUIRE_RE.exec(linePrefix);
     if (!m) return undefined;
 
-    const prefix = m[1];
-    const namespaces = this.index.getAllNamespaces();
+    const prefix = m[2];
 
-    return namespaces
-      .filter(ns => ns.startsWith(prefix))
-      .map(ns => {
-        const entry = this.index.getByNamespace(ns)!;
-        const item = new vscode.CompletionItem(ns, vscode.CompletionItemKind.Module);
-        item.detail = entry.filePath;
-        item.sortText = ns;
-        // Replace the typed prefix so the full namespace is inserted
-        item.insertText = ns;
-        return item;
-      });
+    // Позиция начала аргумента (сразу после открывающей кавычки)
+    const argStart = m.index + m[0].length - prefix.length;
+
+    // Конец заменяемого диапазона: ищем закрывающую кавычку после курсора
+    const lineSuffix = lineText.substring(position.character);
+    const closingMatch = lineSuffix.match(/^([^'"]*)['"]/);
+    const argEnd = closingMatch
+      ? position.character + closingMatch[1].length
+      : position.character;
+
+    const replaceRange = new vscode.Range(
+      new vscode.Position(position.line, argStart),
+      new vscode.Position(position.line, argEnd)
+    );
+
+    const namespaces = this.index.getNamespacesWithPrefix(prefix);
+
+    return namespaces.map(ns => {
+      const entry = this.index.getByNamespace(ns);
+      if (!entry) return undefined;
+
+      const item = new vscode.CompletionItem(ns, vscode.CompletionItemKind.Module);
+      item.detail = entry.filePath;
+      item.sortText = ns;
+      item.insertText = ns;
+      // Явно задаём range — заменяем весь набранный текст между кавычками,
+      // чтобы избежать дублирования при вставке
+      item.range = replaceRange;
+      return item;
+    }).filter((item): item is vscode.CompletionItem => item !== undefined);
   }
 }

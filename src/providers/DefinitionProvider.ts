@@ -7,7 +7,8 @@ import { NamespaceIndex } from '../index/NamespaceIndex';
 import { SymbolCache } from '../parser/SymbolCache';
 import { resolveReceiverType, resolveMethodInHierarchy } from '../parser/InheritanceResolver';
 
-const GOOG_CALL_RE = /goog\.(?:require|provide|module|requireType)\s*\(\s*['"]([^'"]+)['"]/;
+// Группа 1 — тип вызова (require/provide/module/requireType), группа 2 — namespace
+const GOOG_CALL_RE = /goog\.(require|provide|module|requireType)\s*\(\s*['"]([^'"]+)['"]/;
 
 export class DefinitionProvider implements vscode.DefinitionProvider {
   constructor(
@@ -39,12 +40,14 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
     const line = doc.lineAt(pos.line).text;
 
     // Случай 1: курсор на строке goog.require/provide/requireType
+    // goog.module исключаем — это объявление, не ссылка
     const m = GOOG_CALL_RE.exec(line);
-    if (m && !line.includes('goog.module(')) {
-      const nsStart = line.indexOf(m[1]);
-      const nsEnd = nsStart + m[1].length;
+    if (m && m[1] !== 'module') {
+      const ns = m[2];
+      const nsStart = line.indexOf(ns, m.index);
+      const nsEnd = nsStart + ns.length;
       if (pos.character >= nsStart && pos.character <= nsEnd) {
-        return m[1];
+        return ns;
       }
     }
 
@@ -85,7 +88,8 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
     const varName = receiver.startsWith('this.') ? receiver.slice(5) : receiver;
     if (!varName) return undefined;
 
-    // Случай: this.someMethod() — receiver === "this", ищем метод в иерархии классов файла
+    // Случай: this.someMethod() — receiver === "this".
+    // В GCL-коде this всегда ссылается на экземпляр класса (не стрелочные функции).
     if (varName === 'this') {
       const entries = this.index.getByFile(document.uri.fsPath);
       for (const entry of entries) {
@@ -93,9 +97,13 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
         if (!result) continue;
         const defEntry = this.index.getByNamespace(result.resolvedType);
         if (!defEntry) continue;
+        const openDoc = vscode.workspace.textDocuments.find(d => d.uri.fsPath === defEntry.filePath);
         return new vscode.Location(
           vscode.Uri.file(defEntry.filePath),
-          new vscode.Position(result.info.line, 0)
+          new vscode.Position(
+            result.info.line,
+            this.getSymbolColumn(defEntry.filePath, result.info.line, method, openDoc)
+          )
         );
       }
       return undefined;
@@ -119,7 +127,10 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
 
     return new vscode.Location(
       vscode.Uri.file(entry.filePath),
-      new vscode.Position(info.line, 0)
+      new vscode.Position(
+        info.line,
+        this.getSymbolColumn(entry.filePath, info.line, method, openDoc)
+      )
     );
   }
 
@@ -128,13 +139,17 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
    * Приоритет: AST-символ из SymbolCache → goog.provide/module (fallback) → начало файла.
    */
   private findDefinitionPosition(filePath: string, namespace: string): vscode.Position {
-    // Открытый документ передаём в кеш для получения актуального in-memory текста
     const openDoc = vscode.workspace.textDocuments.find(d => d.uri.fsPath === filePath);
     const symbols = this.symbolCache.get(filePath, openDoc);
 
     const info = symbols.get(namespace);
     if (info) {
-      return new vscode.Position(info.line, 0);
+      // Ищем точную колонку — последний сегмент dotted-имени в строке
+      const shortName = namespace.includes('.') ? namespace.split('.').pop()! : namespace;
+      return new vscode.Position(
+        info.line,
+        this.getSymbolColumn(filePath, info.line, shortName, openDoc)
+      );
     }
 
     // Fallback: ищем goog.provide/goog.module в тексте файла
@@ -157,12 +172,33 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
       const limit = Math.min(lines.length, 100);
       for (let i = 0; i < limit; i++) {
         if (patterns.some(p => lines[i].includes(p))) {
-          return new vscode.Position(i, 0);
+          return new vscode.Position(i, lines[i].indexOf(namespace));
         }
       }
-    } catch {
-      // файл недоступен
+    } catch (e) {
+      console.warn('[DefinitionProvider] не удалось прочитать файл:', filePath, e);
     }
     return new vscode.Position(0, 0);
+  }
+
+  /**
+   * Возвращает колонку символа symbolName в строке lineNum файла.
+   * Использует открытый документ если доступен, иначе читает файл с диска.
+   */
+  private getSymbolColumn(
+    filePath: string,
+    lineNum: number,
+    symbolName: string,
+    openDoc?: vscode.TextDocument
+  ): number {
+    try {
+      const lineText = openDoc
+        ? openDoc.lineAt(lineNum).text
+        : fs.readFileSync(filePath, 'utf8').split('\n')[lineNum] ?? '';
+      const col = lineText.indexOf(symbolName);
+      return col >= 0 ? col : 0;
+    } catch {
+      return 0;
+    }
   }
 }

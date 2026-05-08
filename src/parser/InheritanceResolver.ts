@@ -6,6 +6,10 @@ import { NamespaceIndex } from '../index/NamespaceIndex';
 import { SymbolCache } from './SymbolCache';
 import { SymbolInfo } from './SymbolScanner';
 
+// Максимальная глубина рекурсии по цепочке @extends.
+// Защищает от патологических иерархий и циклов, не обнаруженных через visited.
+const MAX_INHERITANCE_DEPTH = 20;
+
 /**
  * Ищет @type-аннотацию для поля varName, начиная с файла filePath,
  * затем рекурсивно поднимаясь по всей цепочке @extends.
@@ -22,8 +26,10 @@ export function resolveReceiverType(
   document: vscode.TextDocument | undefined,
   symbolCache: SymbolCache,
   index: NamespaceIndex,
-  visited: Set<string> = new Set()
+  visited: Set<string> = new Set(),
+  depth: number = 0
 ): string | undefined {
+  if (depth >= MAX_INHERITANCE_DEPTH) return undefined;
   if (visited.has(filePath)) return undefined;
   visited.add(filePath);
 
@@ -40,7 +46,10 @@ export function resolveReceiverType(
 
     for (const parentName of symInfo.extends) {
       const parentEntry = index.getByNamespace(parentName);
-      if (!parentEntry) continue;
+      if (!parentEntry) {
+        console.warn('[InheritanceResolver] родительский namespace не найден в индексе:', parentName);
+        continue;
+      }
 
       const parentDoc = vscode.workspace.textDocuments.find(
         d => d.uri.fsPath === parentEntry.filePath
@@ -48,7 +57,7 @@ export function resolveReceiverType(
 
       const result = resolveReceiverType(
         varName, parentEntry.filePath, parentDoc,
-        symbolCache, index, visited
+        symbolCache, index, visited, depth + 1
       );
       if (result) return result;
     }
@@ -61,14 +70,17 @@ export function resolveReceiverType(
  * Ищет метод methodName в типе typeName и вверх по цепочке @extends.
  * Не использует @type-аннотации — только ищет prototype/static-ключи в SymbolCache.
  * Параметр visited защищает от циклов в иерархии.
+ * Предпочитает kind='method' над 'static' при совпадении обоих ключей.
  */
 export function resolveMethodInHierarchy(
   typeName: string,
   methodName: string,
   symbolCache: SymbolCache,
   index: NamespaceIndex,
-  visited: Set<string> = new Set()
+  visited: Set<string> = new Set(),
+  depth: number = 0
 ): { resolvedType: string; info: SymbolInfo } | undefined {
+  if (depth >= MAX_INHERITANCE_DEPTH) return undefined;
   if (visited.has(typeName)) return undefined;
   visited.add(typeName);
 
@@ -80,14 +92,17 @@ export function resolveMethodInHierarchy(
 
   const protoKey  = `${typeName}.prototype.${methodName}`;
   const staticKey = `${typeName}.${methodName}`;
-  const info = symbols.get(protoKey) ?? symbols.get(staticKey);
+  const protoInfo  = symbols.get(protoKey);
+  const staticInfo = symbols.get(staticKey);
+  // Предпочитаем prototype-метод; static берём только как fallback
+  const info = protoInfo ?? staticInfo;
   if (info) return { resolvedType: typeName, info };
 
   // Поднимаемся по @extends
   const classInfo = symbols.get(typeName);
   if (classInfo?.extends?.length) {
     for (const parent of classInfo.extends) {
-      const result = resolveMethodInHierarchy(parent, methodName, symbolCache, index, visited);
+      const result = resolveMethodInHierarchy(parent, methodName, symbolCache, index, visited, depth + 1);
       if (result) return result;
     }
   }
