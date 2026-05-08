@@ -2,6 +2,7 @@
 goog.provide('myapp.Foo');
 
 goog.require('goog.events.EventTarget');
+goog.require('myapp.TypesEnum');
 
 /**
  * Базовый класс Foo.
@@ -10,6 +11,12 @@ goog.require('goog.events.EventTarget');
  */
 myapp.Foo = function() {
   goog.base(this);
+
+  /**
+   * @type {myapp.TypesEnum}
+   * @private
+   */
+  this.type_ = myapp.TypesEnum.Type_1;  
 };
 goog.inherits(myapp.Foo, goog.events.EventTarget);
 
@@ -28,4 +35,9 @@ myapp.Foo.prototype.getName = function() {
  */
 myapp.Foo.staticHelper = function(x) {
   return x * 2;
+};
+
+/** @return {myapp.TypesEnum} */
+myapp.Foo.prototype.getType = function() {
+  return this.type_;
 };

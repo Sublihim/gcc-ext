@@ -8,7 +8,7 @@ export interface SymbolInfo {
   line: number;
   /** Очищенный текст JSDoc (без маркеров комментария и ведущих звёздочек) */
   jsdoc?: string;
-  kind?: 'constructor' | 'interface' | 'class' | 'method' | 'static';
+  kind?: 'constructor' | 'interface' | 'class' | 'method' | 'static' | 'enum';
   /** Базовые классы/интерфейсы из @extends или class extends */
   extends?: string[];
   /** Интерфейсы из @implements */
@@ -16,10 +16,11 @@ export interface SymbolInfo {
 }
 
 // Regex для извлечения @-тегов из сырого JSDoc-текста
-const JSDOC_EXTENDS_RE   = /@extends\s*\{([^}]+)\}/g;
+const JSDOC_EXTENDS_RE    = /@extends\s*\{([^}]+)\}/g;
 const JSDOC_IMPLEMENTS_RE = /@implements\s*\{([^}]+)\}/g;
 const JSDOC_INTERFACE_RE  = /@interface\b/;
 const JSDOC_CONSTRUCTOR_RE = /@constructor\b/;
+const JSDOC_ENUM_RE       = /@enum\b/;
 
 /** Извлекает все совпадения одного regex из строки */
 function extractTagValues(text: string, re: RegExp): string[] {
@@ -261,6 +262,17 @@ export function scanSymbols(content: string, filePath: string): Map<string, Symb
     // RHS — ClassExpression → ES6 класс
     if (rhsKind === ts.SyntaxKind.ClassExpression) {
       handleClassExpression(symbolName, rhs as ts.ClassExpression, stmt.getStart(sf));
+      return;
+    }
+
+    // RHS — ObjectLiteralExpression + @enum → GCL enum-тип
+    if (rhsKind === ts.SyntaxKind.ObjectLiteralExpression) {
+      const jsdocRaw = getLeadingJsdoc(content, stmt.pos);
+      if (jsdocRaw && JSDOC_ENUM_RE.test(jsdocRaw)) {
+        const info: SymbolInfo = { line: lineOf(stmt.getStart(sf)), kind: 'enum' };
+        info.jsdoc = cleanJsdoc(jsdocRaw);
+        symbols.set(symbolName, info);
+      }
       return;
     }
   }

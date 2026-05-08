@@ -129,6 +129,25 @@ describe('scanSymbols — interface_impl.js', () => {
   });
 });
 
+describe('scanSymbols — enums.js', () => {
+  it('обнаруживает myapp.TypesEnum', () => {
+    const symbols = scan('enums.js');
+    expect(symbols.has('myapp.TypesEnum')).toBe(true);
+  });
+
+  it('myapp.TypesEnum имеет kind=enum', () => {
+    const symbols = scan('enums.js');
+    expect(symbols.get('myapp.TypesEnum')?.kind).toBe('enum');
+  });
+
+  it('myapp.TypesEnum содержит jsdoc с @enum', () => {
+    const symbols = scan('enums.js');
+    const jsdoc = symbols.get('myapp.TypesEnum')?.jsdoc;
+    expect(jsdoc).toBeDefined();
+    expect(jsdoc).toContain('@enum');
+  });
+});
+
 describe('scanSymbols — граничные случаи', () => {
   it('пустой файл возвращает пустую Map', () => {
     const symbols = scanSymbols('', '/fake/empty.js');
