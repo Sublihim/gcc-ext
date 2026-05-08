@@ -148,6 +148,54 @@ describe('scanSymbols — enums.js', () => {
   });
 });
 
+describe('scanSymbols — typedef.js', () => {
+  it('обнаруживает myapp.UserType', () => {
+    const symbols = scan('typedef.js');
+    expect(symbols.has('myapp.UserType')).toBe(true);
+  });
+
+  it('myapp.UserType имеет kind=typedef', () => {
+    const symbols = scan('typedef.js');
+    expect(symbols.get('myapp.UserType')?.kind).toBe('typedef');
+  });
+
+  it('jsdoc содержит @typedef', () => {
+    const symbols = scan('typedef.js');
+    expect(symbols.get('myapp.UserType')?.jsdoc).toContain('@typedef');
+  });
+
+  it('inline typedef без goog.provide также распознаётся', () => {
+    const content = `
+/** @typedef {{x: number, y: number}} */
+myapp.Point;
+    `;
+    const symbols = scanSymbols(content, '/fake/inline.js');
+    expect(symbols.get('myapp.Point')?.kind).toBe('typedef');
+  });
+});
+
+describe('scanSymbols — es5_static.js', () => {
+  it('обнаруживает myapp.StaticES5.create', () => {
+    const symbols = scan('es5_static.js');
+    expect(symbols.has('myapp.StaticES5.create')).toBe(true);
+  });
+
+  it('обнаруживает myapp.StaticES5.log', () => {
+    const symbols = scan('es5_static.js');
+    expect(symbols.has('myapp.StaticES5.log')).toBe(true);
+  });
+
+  it('jsdoc для create содержит @return', () => {
+    const symbols = scan('es5_static.js');
+    expect(symbols.get('myapp.StaticES5.create')?.jsdoc).toContain('@return');
+  });
+
+  it('jsdoc для log содержит @param', () => {
+    const symbols = scan('es5_static.js');
+    expect(symbols.get('myapp.StaticES5.log')?.jsdoc).toContain('@param');
+  });
+});
+
 describe('scanSymbols — граничные случаи', () => {
   it('пустой файл возвращает пустую Map', () => {
     const symbols = scanSymbols('', '/fake/empty.js');

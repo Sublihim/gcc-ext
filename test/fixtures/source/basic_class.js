@@ -3,6 +3,7 @@ goog.provide('myapp.Foo');
 
 goog.require('goog.events.EventTarget');
 goog.require('myapp.TypesEnum');
+goog.require('myapp.StaticES5');
 
 /**
  * Базовый класс Foo.
@@ -41,3 +42,12 @@ myapp.Foo.staticHelper = function(x) {
 myapp.Foo.prototype.getType = function() {
   return this.type_;
 };
+
+/** Использование статического класса ES5 */
+myapp.Foo.prototype.prepareAndLog = function() {
+
+  const obj = myapp.StaticES5.create();
+
+  myapp.StaticES5.log(obj.type);
+
+}

@@ -8,7 +8,7 @@ export interface SymbolInfo {
   line: number;
   /** Очищенный текст JSDoc (без маркеров комментария и ведущих звёздочек) */
   jsdoc?: string;
-  kind?: 'constructor' | 'interface' | 'class' | 'method' | 'static' | 'enum';
+  kind?: 'constructor' | 'interface' | 'class' | 'method' | 'static' | 'enum' | 'typedef';
   /** Базовые классы/интерфейсы из @extends или class extends */
   extends?: string[];
   /** Интерфейсы из @implements */
@@ -21,6 +21,7 @@ const JSDOC_IMPLEMENTS_RE = /@implements\s*\{([^}]+)\}/g;
 const JSDOC_INTERFACE_RE  = /@interface\b/;
 const JSDOC_CONSTRUCTOR_RE = /@constructor\b/;
 const JSDOC_ENUM_RE       = /@enum\b/;
+const JSDOC_TYPEDEF_RE    = /@typedef\b/;
 
 /** Извлекает все совпадения одного regex из строки */
 function extractTagValues(text: string, re: RegExp): string[] {
@@ -222,6 +223,20 @@ export function scanSymbols(content: string, filePath: string): Map<string, Symb
         // goog.inherits обычно идёт после объявления, так что existing должен быть
       }
       return;
+    }
+
+    // ExpressionStatement с dotted-именем + @typedef → GCL typedef-тип.
+    // Покрывает оба варианта: файл с goog.provide (typedef в своём файле)
+    // и inline-typedef без provide (объявление рядом с использованием).
+    const typedefName = getDottedName(expr as ts.Expression);
+    if (typedefName) {
+      const jsdocRaw = getLeadingJsdoc(content, stmt.pos);
+      if (jsdocRaw && JSDOC_TYPEDEF_RE.test(jsdocRaw)) {
+        const info: SymbolInfo = { line: lineOf(stmt.getStart(sf)), kind: 'typedef' };
+        info.jsdoc = cleanJsdoc(jsdocRaw);
+        symbols.set(typedefName, info);
+        return;
+      }
     }
 
     // BinaryExpression: LHS = RHS
