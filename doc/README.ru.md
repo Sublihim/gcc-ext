@@ -89,10 +89,15 @@ npm run compile
 Откройте проект в VSCode и нажмите **F5** — запустится Extension Development Host с активированным расширением.
 
 ```bash
-npm run watch   # инкрементальная компиляция при сохранении
-npm run lint    # ESLint
-vsce package    # собрать .vsix для ручной установки
+npm run watch        # инкрементальная компиляция при сохранении
+npm run lint         # ESLint
+npm test             # запустить unit-тесты (Vitest)
+npm run test:watch   # тесты в watch-режиме
+npm run test:coverage  # тесты с отчётом о покрытии
+vsce package         # собрать .vsix для ручной установки
 ```
+
+Тесты находятся в `test/` — unit-тесты для парсеров и индекса, тесты провайдеров с mock-ом VSCode API. При воспроизведении бага: сначала добавьте fixture-файл в `test/fixtures/` и тест-кейс, затем чините.
 
 ## Ограничения
 

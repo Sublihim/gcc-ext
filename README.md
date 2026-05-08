@@ -93,10 +93,15 @@ npm run compile
 Open in VSCode and press **F5** to launch an Extension Development Host with the extension active.
 
 ```bash
-npm run watch   # incremental compile on save
-npm run lint    # ESLint
-vsce package    # build .vsix for manual install
+npm run watch        # incremental compile on save
+npm run lint         # ESLint
+npm test             # run unit tests (Vitest)
+npm run test:watch   # tests in watch mode
+npm run test:coverage  # tests with coverage report
+vsce package         # build .vsix for manual install
 ```
+
+Tests live in `test/` — unit tests for parsers and index, provider tests with a VSCode API mock. When reproducing a bug, add a fixture file under `test/fixtures/` and a test case before fixing.
 
 ## Limitations
 
